@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #0d1420; --ink: #e8edf5; --muted: #8b9bb3;
+    --accent: #2e74b5; --ok: #1f7a4d; --ok-text: #4fd88a;
+    --warn: #7a5a1f; --warn-text: #e8c468;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; padding:36px 42px; width:1060px; }
+  h1 { font-size:28px; margin:0 0 6px; }
+  .sub { color:var(--muted); font-size:13px; max-width:920px; line-height:1.5; margin-bottom:22px; }
+  .cluster { border:2px solid var(--accent); border-radius:14px; padding:18px 22px 22px; margin-bottom:18px; background:#0f1826; }
+  .cluster h2 { margin:0 0 2px; font-size:18px; }
+  .cluster .meta { color:var(--muted); font-size:11.5px; margin-bottom:14px; }
+  .nodes { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .node { border:1px solid #2a3b54; border-radius:8px; padding:8px 12px; font-size:11.5px; background:#111c2c; min-width:150px; }
+  .node .n { font-weight:700; font-size:12.5px; }
+  .node .ip { color:var(--muted); }
+  .svc-row { display:flex; gap:10px; flex-wrap:wrap; }
+  .svc { flex:1; min-width:190px; border-radius:9px; padding:10px 12px; font-size:11.5px; border:1px solid #2a3b54; background:#101a29; }
+  .svc .t { font-weight:700; font-size:13px; margin-bottom:3px; }
+  .svc .d { color:var(--muted); line-height:1.4; }
+  .tag { display:inline-block; font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:5px; margin-top:5px; letter-spacing:.4px; }
+  .tag.ok { background:var(--ok); color:var(--ok-text); }
+  .tag.warn { background:var(--warn); color:var(--warn-text); }
+  .flowarrow { text-align:center; color:#9fb6d6; font-size:12px; margin:2px 0 18px; display:flex; align-items:center; gap:10px; justify-content:center; }
+  .flowarrow .line { flex:1; max-width:220px; height:1px; background:repeating-linear-gradient(90deg,#3a4f6b 0 6px,transparent 6px 10px); position:relative; }
+  .flowarrow .line::after { content:"▼"; position:absolute; right:-4px; top:-7px; color:#3a4f6b; font-size:11px; }
+  footer { color:#5a6b85; font-size:11px; margin-top:6px; }
+</style>
+</head>
+<body>
+  <h1>Mapa do ambiente — k8s-labs</h1>
+  <div class="sub">Topologia real dos clusters/VMs do lab, segmentada por responsabilidade (não por rede — todas as VMs rodam no mesmo host físico Proxmox "pve" (192.168.15.7, https://192.168.15.7:8006), na mesma LAN plana 192.168.15.0/24; a única segmentação de rede real hoje é via NetworkPolicy/Cilium dentro do k8s-backstage, entre os namespaces de estágio). Verde = funcionando de verdade; amarelo = pendente. Atualizado 2026-11-24.</div>
+
+  <div class="cluster">
+    <h2>k8s-ci <span class="tag ok">ATIVO</span></h2>
+    <div class="meta">build, scan e publicação de imagens — k3s, 3 nós, balanceados por label (role: worker)</div>
+    <div class="nodes">
+      <div class="node"><div class="n">k8s-ci-cp</div><div class="ip">192.168.15.70</div></div>
+      <div class="node"><div class="n">k8s-ci-w1</div><div class="ip">192.168.15.72</div></div>
+      <div class="node"><div class="n">k8s-ci-w2</div><div class="ip">192.168.15.73</div></div>
+    </div>
+    <div class="svc-row">
+      <div class="svc"><div class="t">Forgejo</div><div class="d">git + container registry — http://192.168.15.70:3000. Hospeda "backstage" (app) e, desde 20/11, "k8s-labs" (infra) — canônico, com push mirror automático pro GitHub (portfólio + backup)</div></div>
+      <div class="svc"><div class="t">Pipeline backstage-build</div><div class="d">7 Tasks (clone/test/sast/sca/build/image-scan/sbom), assinatura automática via Tekton Chains. Patch de imagem (Copacetic/Chainguard) avaliado e descartado — razão no diagrama de arquitetura</div></div>
+      <div class="svc"><div class="t">Pipeline iac-scan</div><div class="d">Checkov sobre Kubernetes+Ansible do k8s-labs — dispara por push no k8s-labs. Gap do Terraform e avaliação do tfsec: ver diagrama de arquitetura</div><span class="tag ok">FEITO 20/11</span></div>
+      <div class="svc"><div class="t">Pipeline dast-scan</div><div class="d">OWASP ZAP baseline scan, roda aqui mas mira https://backstage.lab.local (k8s-backstage) via hostAliases — disparo manual. 1ª execução: 0 FAIL, 7 WARN</div><span class="tag ok">FEITO 20/11</span></div>
+      <div class="svc"><div class="t">gVisor (RuntimeClass)</div><div class="d">isolamento extra nas Tasks test/sast/sca — não usado em build (exige SYS_ADMIN, incompatível)</div></div>
+      <div class="svc"><div class="t">Renovate</div><div class="d">CronJob 1/h ainda ativo (abre PR de dependência desatualizada); Schedule novo no Semaphore (a cada 4h) validado — CronJob será suspenso após confirmar o Schedule disparando sozinho</div></div>
+      <div class="svc"><div class="t">Pruner (CronJob)</div><div class="d">limpeza diária, mantém os 5 PipelineRuns mais recentes por Pipeline — libera PVCs acumuladas</div></div>
+      <div class="svc"><div class="t">kube-bench (CronJob x3, suspenso)</div><div class="d">CIS Benchmark semanal, 1 por node (cp/w1/w2) — perfil k3s-cis-1.24 (aproximação, sem cobertura exata pra k3s v1.37). Disparo real migrado pro Semaphore (platform-ops)</div><span class="tag ok">FEITO 21/11</span></div>
+      <div class="svc"><div class="t">Lynis</div><div class="d">hardening do SO (Ubuntu) via Ansible/Semaphore — índice 62/100 na linha de base, roda nos 6 nodes dos dois clusters. Será substituído pelo SCA do Wazuh após validação (não desligado ainda — ver nota no bloco Wazuh)</div><span class="tag ok">FEITO 22/11</span></div>
+    </div>
+  </div>
+
+  <div class="flowarrow"><span class="line"></span> workspace compartilhado via NFSv4 <span class="line"></span></div>
+
+  <div class="cluster">
+    <h2>nfs-ganesha <span class="tag ok">ATIVO</span></h2>
+    <div class="meta">storage compartilhado pro workspace Tekton — VM dedicada, 1 nó (fora do cluster k3s)</div>
+    <div class="nodes">
+      <div class="node"><div class="n">nfs-ganesha</div><div class="ip">192.168.15.77</div></div>
+    </div>
+    <div class="svc-row">
+      <div class="svc"><div class="t">NFS-Ganesha (FSAL VFS)</div><div class="d">exporta /srv/nfs/tekton-workspaces via NFSv4, consumido pelo k8s-ci via csi-driver-nfs. Substitui o local-path-provisioner node-afim que travava tudo em k8s-ci-w1</div></div>
+    </div>
+  </div>
+
+  <div class="flowarrow"><span class="line"></span> imagem backstage:latest assinada e com SBOM → pull autenticado via regcred <span class="line"></span></div>
+
+  <div class="cluster">
+    <h2>k8s-backstage <span class="tag ok">ATIVO</span></h2>
+    <div class="meta">hospeda a aplicação Backstage — k3s, 4 nós (3º worker adicionado em 23/11 pro multi-stage). CNI: <b style="color:#4fd88a">Cilium 1.20.5</b> (substituiu o Flannel embarcado do k3s em 23/11 — NetworkPolicy real exige isso, Flannel não tem motor de política)</div>
+    <div class="nodes">
+      <div class="node"><div class="n">k8s-backstage-cp</div><div class="ip">192.168.15.71</div></div>
+      <div class="node"><div class="n">k8s-backstage-w1</div><div class="ip">192.168.15.75</div></div>
+      <div class="node"><div class="n">k8s-backstage-w2</div><div class="ip">192.168.15.76</div></div>
+      <div class="node"><div class="n">k8s-backstage-w3</div><div class="ip">192.168.15.78</div></div>
+    </div>
+    <div class="svc-row">
+      <div class="svc"><div class="t">Argo CD</div><div class="d">https://192.168.15.71:8443 (LoadBalancer do k3s/ServiceLB). Application "backstage" — Synced/Healthy, GitOps via repo gitops-manifests</div></div>
+      <div class="svc"><div class="t">Argo CD Image Updater</div><div class="d">v1.5 (CRD ImageUpdater), namespace argocd. Monitora backstage:latest no registry do Forgejo, escreve digest novo no gitops-manifests via SSH (deploy key dedicada)</div><span class="tag ok">FEITO 23/11</span></div>
+      <div class="svc"><div class="t">Backstage</div><div class="d">3 réplicas, catálogo com 1 entidade registrada, guest auth</div></div>
+      <div class="svc"><div class="t">Postgres</div><div class="d">banco dedicado, substituiu sqlite :memory: em 19/11</div></div>
+      <div class="svc"><div class="t">Ingress (Traefik)</div><div class="d">https://backstage.lab.local, TLS autoassinado</div></div>
+      <div class="svc"><div class="t">Keycloak</div><div class="d">SSO real — ainda não implantado</div><span class="tag warn">PENDENTE</span></div>
+      <div class="svc"><div class="t">Application "test-app"</div><div class="d">Application Argo CD + namespace próprio — app de validação usada para testar o fluxo GitOps antes do Backstage estar pronto, continua rodando (Synced/Healthy)</div></div>
+      <div class="svc"><div class="t">kube-bench (CronJob x3, suspenso)</div><div class="d">mesma auditoria CIS Benchmark, aplicada aqui também — resultado idêntico ao k8s-ci. Disparo real migrado pro Semaphore</div><span class="tag ok">FEITO 21/11</span></div>
+      <div class="svc"><div class="t">Lynis</div><div class="d">hardening do SO também aqui, via Ansible/Semaphore — mesmo índice 62/100. Será substituído pelo SCA do Wazuh após validação</div><span class="tag ok">FEITO 22/11</span></div>
+    </div>
+    <div class="meta" style="margin-top:14px; margin-bottom:6px;">Multi-stage (dev/qa/stage/prod) — namespaces segregados dentro deste mesmo cluster, tenant = estágio</div>
+    <div class="svc-row">
+      <div class="svc"><div class="t">dev</div><div class="d">ResourceQuota 1 cpu/1Gi (req), 2 cpu/2Gi (limit), 10 pods. LimitRange + 4x NetworkPolicy (default-deny, same-ns, dns-egress, ingress-traefik)</div><span class="tag ok">FEITO 23/11</span></div>
+      <div class="svc"><div class="t">qa</div><div class="d">ResourceQuota 2 cpu/2Gi (req), 4 cpu/4Gi (limit), 15 pods. Mesmo conjunto de NetworkPolicy</div><span class="tag ok">FEITO 23/11</span></div>
+      <div class="svc"><div class="t">stage</div><div class="d">ResourceQuota 3 cpu/3Gi (req), 6 cpu/6Gi (limit), 20 pods. Mesmo conjunto de NetworkPolicy</div><span class="tag ok">FEITO 23/11</span></div>
+      <div class="svc"><div class="t">prod</div><div class="d">ResourceQuota 4 cpu/4Gi (req), 8 cpu/8Gi (limit), 25 pods. Mesmo conjunto de NetworkPolicy</div><span class="tag ok">FEITO 23/11</span></div>
+      <div class="svc"><div class="t">Crossplane</div><div class="d">provisionamento de infra por estágio via ProviderConfig namespaced (AWS/MiniStack confirmado; Azure/floci-az pendente — provider oficial não fala com o floci-az, alternativa via provider-http em avaliação)</div><span class="tag warn">PENDENTE</span></div>
+    </div>
+  </div>
+
+  <div class="cluster">
+    <h2>platform-ops <span class="tag ok">ATIVO</span></h2>
+    <div class="meta">manutenção da infraestrutura — 1 VM</div>
+    <div class="nodes">
+      <div class="node"><div class="n">semaphore-ui</div><div class="ip">192.168.15.74</div></div>
+    </div>
+    <div class="svc-row">
+      <div class="svc"><div class="t">Semaphore UI</div><div class="d">http://192.168.15.74:3000. Orquestra Ansible contra as demais VMs e os dois clusters (update-os, kube-bench, Renovate, Lynis) via interface web. Nunca gerencia a si mesma (limitação de auto-restart)</div></div>
+    </div>
+  </div>
+
+  <div class="cluster">
+    <h2>emuladores de nuvem local <span class="tag ok">ATIVO</span></h2>
+    <div class="meta">2 VMs standalone, fora de qualquer cluster k3s — validam Crossplane/apps cloud-native sem custo real. Recriado/avaliado em 22-23/11</div>
+    <div class="nodes">
+      <div class="node"><div class="n">ministack</div><div class="ip">192.168.15.56</div></div>
+      <div class="node"><div class="n">floci-az</div><div class="ip">192.168.15.79</div></div>
+    </div>
+    <div class="svc-row">
+      <div class="svc"><div class="t">MiniStack</div><div class="d">http://192.168.15.56:4566 — motor do emulador AWS (Lambda/SQS/DynamoDB/S3...). Recriado do zero (VM original destruída em 28/10 junto com o homelab-iac), código portado do GitHub</div></div>
+      <div class="svc"><div class="t">StackPort</div><div class="d">http://192.168.15.56:8080 — painel web de recursos do MiniStack (S3, DynamoDB, Lambda, SQS, IAM, EC2...)</div></div>
+      <div class="svc"><div class="t">floci-az</div><div class="d">http://192.168.15.79:4577 — emulador local de Azure (MIT, grátis sem teto de receita, diferente do Topaz). 33 serviços (Storage, Cosmos DB, SQL/Postgres/MySQL com motor real, Functions, AKS...), mas sem Front Door/CDN — diferente do LocalStack for Azure, que tem</div></div>
+    </div>
+  </div>
+
+  <div class="cluster">
+    <h2>Wazuh (SIEM) <span class="tag ok">ATIVO</span></h2>
+    <div class="meta">VM dedicada, 1 nó, fora de qualquer cluster k3s — consolida Lynis (SCA) + Loki/Fluent Bit planejado (Indexer). Decisão de 24/11: maior ganho de consolidação em vez de ferramenta por camada</div>
+    <div class="nodes">
+      <div class="node"><div class="n">wazuh</div><div class="ip">192.168.15.80</div></div>
+    </div>
+    <div class="svc-row">
+      <div class="svc"><div class="t">Wazuh Manager + Indexer + Dashboard</div><div class="d">https://192.168.15.80 — all-in-one v4.14, 8 vCPU/12GB/100GB (RAM subida de 8→12GB em 24/11, heap do Indexer fixado em 4GB). 11 agentes do lab inteiro conectados (Active)</div><span class="tag ok">FEITO 24/11</span></div>
+      <div class="svc"><div class="t">SCA (Security Configuration Assessment)</div><div class="d">rodando a política CIS Ubuntu 22.04 em todos os agentes — vai substituir o Lynis depois de comparar achados com o baseline (62/100)</div><span class="tag ok">FEITO 24/11</span></div>
+      <div class="svc"><div class="t">Falco → Wazuh (log source)</div><div class="d">quando o Falco for implementado (roadmap), seus alertas serão consumidos pelo Wazuh em vez de um dashboard isolado — o módulo de container do Wazuh sozinho é raso (só eventos Docker)</div><span class="tag warn">PENDENTE</span></div>
+    </div>
+  </div>
+
+  <footer>k8s-labs — gerado via Puppeteer, 2026-11-25 (atualização 9 — RAM/agentes do Wazuh corrigidos e Application "test-app" adicionada após validação ao vivo contra docs/inventario-componentes.md)</footer>
+</body>
+</html>

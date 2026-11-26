@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #0d1420;
+    --panel: #121b2b;
+    --ink: #e8edf5;
+    --muted: #8b9bb3;
+    --accent: #2e74b5;
+    --accent-text: #bcd6f2;
+    --ok: #1f7a4d;
+    --ok-text: #4fd88a;
+    --gap: #7a1f2b;
+    --gap-text: #ff8a8a;
+    --warn: #7a5a1f;
+    --warn-text: #e8c468;
+    --neutral: #4a5568;
+    --neutral-text: #c3cad6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    padding: 36px 42px;
+    width: 1180px;
+  }
+  h1 { font-size: 30px; margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: 13px; max-width: 1080px; line-height: 1.5; margin-bottom: 14px; }
+  .badge {
+    display: inline-block;
+    border: 1px solid var(--accent);
+    color: var(--accent-text);
+    background: #142235;
+    border-radius: 7px;
+    padding: 7px 14px;
+    font-size: 13px;
+    margin-bottom: 18px;
+  }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 22px; font-size: 11.5px; color: var(--muted); }
+  .legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .cluster {
+    border: 2px solid var(--accent);
+    border-radius: 14px;
+    padding: 20px 24px 22px;
+    margin-bottom: 20px;
+    background: #0f1826;
+  }
+  .cluster h2 { margin: 0 0 2px; font-size: 19px; }
+  .cluster .meta { color: var(--muted); font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
+  .cluster.side-by-side { display: flex; gap: 18px; }
+  .cluster.side-by-side > .half { flex: 1; min-width: 0; }
+  .cluster.side-by-side > .divider { width: 1px; background: #233249; }
+  .half h3 { margin: 0 0 2px; font-size: 15px; }
+  .half .meta2 { color: var(--muted); font-size: 11.5px; margin-bottom: 10px; line-height: 1.5; }
+  .transition {
+    text-align: center; color: #9fb6d6; font-size: 12px; margin: 2px 0 18px;
+    display: flex; align-items: center; gap: 10px; justify-content: center;
+  }
+  .transition .line { flex: 1; max-width: 220px; height: 1px; background: #3a4f6b; position: relative; }
+  .transition .line::after { content: "\25BC"; position: absolute; right: -4px; top: -7px; color: #3a4f6b; font-size: 11px; }
+  footer { color: #5a6b85; font-size: 11px; margin-top: 10px; }
+  svg text { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+</style>
+</head>
+<body>
+  <h1>Fluxo de entrega — k8s-labs</h1>
+  <div class="sub">Do push no Forgejo até o Backstage servindo tráfego real via Ingress TLS, e as duas pipelines de segurança que cobrem domínios diferentes (infra e aplicação viva). As caixas e setas mostram o mecanismo real — o que cada seta entrega e o que dispara cada etapa — não só a lista de nomes. Levantado e validado contra o cluster vivo em 2026-11-25 (ver docs/inventario-componentes.md).</div>
+  <div class="badge">Aplicação que atravessa o fluxo: Backstage (repo "backstage" no Forgejo)</div>
+  <div class="legend">
+    <span><span class="sw" style="background:var(--ok)"></span>implementado / rodando</span>
+    <span><span class="sw" style="background:var(--warn)"></span>pendente / avaliado</span>
+    <span><span class="sw" style="background:var(--neutral)"></span>gatilho / estrutural</span>
+    <span><span class="sw" style="background:var(--gap)"></span>gap conhecido</span>
+  </div>
+
+  <div class="cluster">
+    <h2>k8s-ci — pipeline de build (3 nós: cp/w1/w2)</h2>
+    <div class="meta">Todas as etapas abaixo confirmadas rodando de verdade. gVisor isola as Tasks test/SAST/SCA (não o build — Buildah exige SYS_ADMIN, incompatível com runsc).</div>
+    <svg width="100%" viewBox="0 0 1100 420" role="img">
+      <title>Pipeline backstage-build no k8s-ci</title>
+      <desc>Push no repo backstage dispara um EventListener do Tekton, que roda a pipeline backstage-build: test, SAST, build, SCA, SBOM e image-scan em sequência, seguida de patch avaliado (não implementado), assinatura via Tekton Chains e publicação no registry Forgejo. Um CronJob Renovate alimenta o mesmo gatilho abrindo commits de dependência.</desc>
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+      <!-- Trigger row -->
+      <rect x="20" y="10" width="200" height="50" rx="8" fill="#161f2e" stroke="var(--neutral)" stroke-width="1.5"/>
+      <text x="120" y="30" text-anchor="middle" fill="var(--neutral-text)" font-size="13" font-weight="700">push</text>
+      <text x="120" y="47" text-anchor="middle" fill="var(--muted)" font-size="11">repo "backstage" (git push)</text>
+
+      <rect x="260" y="10" width="200" height="50" rx="8" fill="#161f2e" stroke="var(--warn)" stroke-width="1.5"/>
+      <text x="360" y="30" text-anchor="middle" fill="var(--warn-text)" font-size="13" font-weight="700">Renovate</text>
+      <text x="360" y="47" text-anchor="middle" fill="var(--muted)" font-size="11">CronJob 1/h — abre commit de dep.</text>
+      <path d="M260 35 L220 35" fill="none" stroke="var(--warn)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a1)"/>
+
+      <rect x="450" y="90" width="200" height="50" rx="8" fill="#142235" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="550" y="110" text-anchor="middle" fill="var(--accent-text)" font-size="13" font-weight="700">EventListener</text>
+      <text x="550" y="127" text-anchor="middle" fill="var(--muted)" font-size="11">dispara PipelineRun</text>
+      <path d="M120 60 L120 115 L448 115" fill="none" stroke="var(--neutral)" stroke-width="1.3" marker-end="url(#a1)"/>
+
+      <!-- Pipeline row: 6 boxes -->
+      <g font-size="12">
+        <rect x="20" y="170" width="150" height="62" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+        <text x="95" y="192" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">test</text>
+        <text x="95" y="208" text-anchor="middle" fill="var(--muted)" font-size="10.5">Node + Yarn</text>
+        <text x="95" y="222" text-anchor="middle" fill="var(--muted)" font-size="10.5">gVisor</text>
+
+        <rect x="190" y="170" width="150" height="62" rx="6" fill="var(--panel)" stroke="var(--gap)" stroke-width="1.5"/>
+        <text x="265" y="192" text-anchor="middle" fill="var(--gap-text)" font-weight="700" font-size="13">SAST</text>
+        <text x="265" y="208" text-anchor="middle" fill="var(--muted)" font-size="10.5">Semgrep</text>
+        <text x="265" y="222" text-anchor="middle" fill="var(--muted)" font-size="10.5">gVisor</text>
+
+        <rect x="360" y="170" width="150" height="62" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+        <text x="435" y="192" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">build</text>
+        <text x="435" y="208" text-anchor="middle" fill="var(--muted)" font-size="10.5">Tekton + Buildah</text>
+        <text x="435" y="222" text-anchor="middle" fill="var(--muted)" font-size="10.5">sem gVisor</text>
+
+        <rect x="530" y="170" width="150" height="62" rx="6" fill="var(--panel)" stroke="var(--warn)" stroke-width="1.5"/>
+        <text x="605" y="192" text-anchor="middle" fill="var(--warn-text)" font-weight="700" font-size="13">SCA</text>
+        <text x="605" y="208" text-anchor="middle" fill="var(--muted)" font-size="10.5">Trivy (fs scan)</text>
+        <text x="605" y="222" text-anchor="middle" fill="var(--muted)" font-size="10.5">gVisor</text>
+
+        <rect x="700" y="170" width="150" height="62" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+        <text x="775" y="192" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">SBOM</text>
+        <text x="775" y="208" text-anchor="middle" fill="var(--muted)" font-size="10.5">Syft (CycloneDX)</text>
+
+        <rect x="870" y="170" width="150" height="62" rx="6" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="945" y="192" text-anchor="middle" fill="var(--accent-text)" font-weight="700" font-size="13">image-scan</text>
+        <text x="945" y="208" text-anchor="middle" fill="var(--muted)" font-size="10.5">Trivy</text>
+        <text x="945" y="222" text-anchor="middle" fill="var(--muted)" font-size="10.5">lê o SBOM</text>
+      </g>
+      <path d="M550 140 L550 155 L95 155 L95 168" fill="none" stroke="var(--accent)" stroke-width="1.3" marker-end="url(#a1)"/>
+      <path d="M170 201 L188 201" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a1)"/>
+      <path d="M340 201 L358 201" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a1)"/>
+      <path d="M510 201 L528 201" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a1)"/>
+      <path d="M680 201 L698 201" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a1)"/>
+      <path d="M850 201 L868 201" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a1)"/>
+
+      <!-- Patch / Sign / Registry row -->
+      <rect x="150" y="320" width="200" height="56" rx="6" fill="var(--panel)" stroke="var(--warn)" stroke-width="1.5"/>
+      <text x="250" y="341" text-anchor="middle" fill="var(--warn-text)" font-weight="700" font-size="13">patch</text>
+      <text x="250" y="357" text-anchor="middle" fill="var(--muted)" font-size="10.5">Copacetic/Chainguard — avaliado</text>
+
+      <rect x="390" y="320" width="200" height="56" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+      <text x="490" y="341" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">image sign</text>
+      <text x="490" y="357" text-anchor="middle" fill="var(--muted)" font-size="10.5">Tekton Chains (Cosign)</text>
+
+      <rect x="630" y="320" width="200" height="56" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+      <text x="730" y="341" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">registry</text>
+      <text x="730" y="357" text-anchor="middle" fill="var(--muted)" font-size="10.5">Forgejo Packages</text>
+
+      <path d="M945 232 L945 300 L250 300 L250 318" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a1)"/>
+      <path d="M350 348 L388 348" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a1)"/>
+      <path d="M590 348 L628 348" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a1)"/>
+    </svg>
+  </div>
+
+  <div class="cluster side-by-side">
+    <div class="half">
+      <h3>IaC Scan (k8s-ci — pipeline separada)</h3>
+      <div class="meta2">Dispara por push no repo de infra <b>k8s-labs</b>, não no "backstage" — audita o próprio ambiente, não a aplicação.</div>
+      <svg width="100%" viewBox="0 0 480 170" role="img">
+        <title>IaC Scan</title>
+        <desc>Push no repositório k8s-labs dispara a Task Checkov, que escaneia os manifests Kubernetes e Ansible do próprio laboratório.</desc>
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+        <rect x="20" y="15" width="200" height="50" rx="8" fill="#161f2e" stroke="var(--neutral)" stroke-width="1.5"/>
+        <text x="120" y="35" text-anchor="middle" fill="var(--neutral-text)" font-size="13" font-weight="700">push</text>
+        <text x="120" y="52" text-anchor="middle" fill="var(--muted)" font-size="11">repo "k8s-labs"</text>
+        <path d="M120 65 L120 100" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a2)"/>
+        <rect x="20" y="105" width="200" height="56" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+        <text x="120" y="127" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">IaC Scan — Checkov</text>
+        <text x="120" y="144" text-anchor="middle" fill="var(--muted)" font-size="10.5">escaneia K8s + Ansible do lab</text>
+      </svg>
+    </div>
+    <div class="divider"></div>
+    <div class="half">
+      <h3>DAST (k8s-ci — pipeline separada, mira o k8s-backstage)</h3>
+      <div class="meta2">Hoje disparo <b>manual</b> — não existe webhook de "acabei de sincronizar no Argo CD" ainda (pendência registrada).</div>
+      <svg width="100%" viewBox="0 0 480 170" role="img">
+        <title>DAST</title>
+        <desc>O deploy real do Backstage via Argo CD deveria disparar o scan DAST automaticamente, mas hoje esse gatilho é manual — gap pendente. O ZAP ataca o endpoint real do Backstage.</desc>
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+        </defs>
+        <rect x="20" y="15" width="220" height="50" rx="8" fill="#161f2e" stroke="var(--gap)" stroke-width="1.5" stroke-dasharray="5 3"/>
+        <text x="130" y="35" text-anchor="middle" fill="var(--gap-text)" font-size="12.5" font-weight="700">deploy sincronizado</text>
+        <text x="130" y="52" text-anchor="middle" fill="var(--muted)" font-size="10.5">gatilho automático — não existe ainda</text>
+        <path d="M130 65 L130 100" fill="none" stroke="var(--gap)" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#a3)"/>
+        <text x="260" y="85" fill="var(--muted)" font-size="10.5">hoje: disparo manual</text>
+        <rect x="20" y="105" width="220" height="56" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+        <text x="130" y="127" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">DAST — OWASP ZAP</text>
+        <text x="130" y="144" text-anchor="middle" fill="var(--muted)" font-size="10.5">ataca https://backstage.lab.local</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="transition"><span class="line"></span> imagem backstage:latest versionada, assinada e com SBOM gerado <span class="line"></span></div>
+
+  <div class="cluster">
+    <h2>k8s-backstage — GitOps e app hosting (4 nós: cp + 3 agents, CNI Cilium)</h2>
+    <div class="meta">Argo CD Synced/Healthy, deploy real confirmado. Multi-stage (dev/qa/stage/prod) existe como namespaces isolados por ResourceQuota/LimitRange/NetworkPolicy, mas sem app deployado dentro ainda — infraestrutura pronta, não usada.</div>
+    <svg width="100%" viewBox="0 0 1100 320" role="img">
+      <title>GitOps e deploy do Backstage</title>
+      <desc>O Argo CD Image Updater observa o registry, detecta uma imagem nova e escreve de volta no repositório gitops-manifests via SSH. O Argo CD detecta essa mudança e sincroniza a Application, que faz o Deployment do Backstage, conectado a um Postgres e exposto via Ingress TLS, além de registrar a entidade no catálogo. Crossplane e Keycloak estão planejados mas não implementados. Os namespaces de multi-stage existem mas estão vazios.</desc>
+      <defs>
+        <marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+      <rect x="20" y="20" width="220" height="56" rx="6" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="130" y="42" text-anchor="middle" fill="var(--accent-text)" font-weight="700" font-size="13">Image Updater</text>
+      <text x="130" y="59" text-anchor="middle" fill="var(--muted)" font-size="10.5">polling no registry (estratégia digest)</text>
+
+      <rect x="280" y="20" width="220" height="56" rx="6" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="390" y="42" text-anchor="middle" fill="var(--accent-text)" font-weight="700" font-size="13">git write-back</text>
+      <text x="390" y="59" text-anchor="middle" fill="var(--muted)" font-size="10.5">commit SSH no repo gitops-manifests</text>
+      <path d="M240 48 L278 48" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a4)"/>
+
+      <rect x="540" y="20" width="220" height="56" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+      <text x="650" y="42" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">Argo CD sync</text>
+      <text x="650" y="59" text-anchor="middle" fill="var(--muted)" font-size="10.5">Application "backstage" — Synced/Healthy</text>
+      <path d="M500 48 L538 48" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a4)"/>
+
+      <rect x="800" y="20" width="220" height="56" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+      <text x="910" y="42" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">Deploy</text>
+      <text x="910" y="59" text-anchor="middle" fill="var(--muted)" font-size="10.5">Deployment, 3 réplicas</text>
+      <path d="M760 48 L798 48" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a4)"/>
+
+      <rect x="800" y="120" width="220" height="56" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+      <text x="910" y="142" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">Ingress TLS</text>
+      <text x="910" y="159" text-anchor="middle" fill="var(--muted)" font-size="10.5">Traefik — https://backstage.lab.local</text>
+      <path d="M910 76 L910 118" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a4)"/>
+
+      <rect x="540" y="120" width="220" height="56" rx="6" fill="var(--panel)" stroke="var(--ok)" stroke-width="1.5"/>
+      <text x="650" y="142" text-anchor="middle" fill="var(--ok-text)" font-weight="700" font-size="13">Postgres</text>
+      <text x="650" y="159" text-anchor="middle" fill="var(--muted)" font-size="10.5">catálogo/KeyStore persistente</text>
+      <path d="M850 148 L762 148" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a4)"/>
+
+      <rect x="280" y="120" width="220" height="56" rx="6" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="390" y="142" text-anchor="middle" fill="var(--accent-text)" font-weight="700" font-size="13">Catálogo</text>
+      <text x="390" y="159" text-anchor="middle" fill="var(--muted)" font-size="10.5">catalog-info.yaml registrado</text>
+      <path d="M800 148 L502 148" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a4)"/>
+
+      <rect x="20" y="220" width="220" height="56" rx="6" fill="#161f2e" stroke="var(--neutral)" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <text x="130" y="242" text-anchor="middle" fill="var(--neutral-text)" font-weight="700" font-size="13">Multi-stage</text>
+      <text x="130" y="259" text-anchor="middle" fill="var(--muted)" font-size="10.5">dev/qa/stage/prod — namespaces vazios</text>
+
+      <rect x="280" y="220" width="220" height="56" rx="6" fill="#161f2e" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <text x="390" y="242" text-anchor="middle" fill="var(--warn-text)" font-weight="700" font-size="13">Crossplane</text>
+      <text x="390" y="259" text-anchor="middle" fill="var(--muted)" font-size="10.5">infra sob demanda — não instalado</text>
+
+      <rect x="540" y="220" width="220" height="56" rx="6" fill="#161f2e" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <text x="650" y="242" text-anchor="middle" fill="var(--warn-text)" font-weight="700" font-size="13">Keycloak</text>
+      <text x="650" y="259" text-anchor="middle" fill="var(--muted)" font-size="10.5">SSO do Backstage — não instalado</text>
+
+      <path d="M650 198 L650 218" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a4)"/>
+      <path d="M390 198 L390 218" fill="none" stroke="var(--warn)" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a4)"/>
+      <path d="M650 198 L390 198" fill="none" stroke="var(--warn)" stroke-width="1.3" stroke-dasharray="4 3"/>
+      <path d="M650 198 L130 198 L130 218" fill="none" stroke="var(--muted)" stroke-width="1.3" marker-end="url(#a4)"/>
+    </svg>
+  </div>
+
+  <footer>k8s-labs — gerado via Puppeteer, 2026-11-25 (redesenho: diagrama SVG mostrando o mecanismo real — gatilhos, setas com o que cada uma entrega e estado atual vs. pendente — em vez de lista de nomes. Base: docs/inventario-componentes.md, validado contra o cluster vivo)</footer>
+</body>
+</html>

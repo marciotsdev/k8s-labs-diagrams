@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Arquitetura k8s-labs</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* layout: topologia compacta no topo, decisões de arquitetura em grid de cards abaixo */
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --panel-2: #ececE6; --fg: #1b1e24; --muted: #686f78;
+    --line: #d8d4c8; --accent: #b8761f; --accent-2: #1f7a5c; --bad: #a33f3f;
+    --code-bg: #ece7dc;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171c; --panel: #1b1f26; --panel-2: #20252c; --fg: #e8e9ec; --muted: #9aa1ad;
+      --line: #333a44; --accent: #e8a33f; --accent-2: #4fd8a8; --bad: #e08a8a;
+      --code-bg: #262b33;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171c; --panel: #1b1f26; --panel-2: #20252c; --fg: #e8e9ec; --muted: #9aa1ad;
+    --line: #333a44; --accent: #e8a33f; --accent-2: #4fd8a8; --bad: #e08a8a;
+    --code-bg: #262b33;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; min-width: 0; }
+  body {
+    background: var(--bg); color: var(--fg); margin: 0;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 32px 56px; }
+  h1 {
+    font-family: "Space Grotesk", ui-sans-serif, sans-serif; font-weight: 600; letter-spacing: -0.01em;
+    font-size: clamp(1.4rem, 3vw, 1.9rem); margin: 0 0 6px; text-wrap: balance;
+  }
+  .kicker {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.7rem;
+    text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin: 0 0 8px;
+  }
+  .sub { color: var(--muted); font-size: 0.95rem; max-width: 70ch; line-height: 1.55; margin: 0 0 6px; }
+  .sub.correction { color: var(--bad); font-size: 0.86rem; margin-bottom: 26px; }
+  .sub.correction b { color: var(--fg); }
+
+  figure { margin: 0 0 32px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px clamp(10px,2vw,26px) 14px; }
+  svg { width: 100%; height: auto; display: block; overflow: visible; }
+  figcaption { font-size: 0.84rem; color: var(--muted); border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; line-height: 1.55; }
+
+  h2.section { font-family: "Space Grotesk", sans-serif; font-size: 1.05rem; font-weight: 600; margin: 0 0 14px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; margin-bottom: 36px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+  .card .h {
+    font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.74rem;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-2);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .card .h .status { font-size: 0.64rem; padding: 2px 7px; border-radius: 99px; background: var(--panel-2); color: var(--muted); letter-spacing: 0.04em; white-space: nowrap; }
+  .card .h .status.ok { color: var(--accent-2); }
+  .card .h .status.warn { color: var(--accent); }
+  .card p { margin: 0; font-size: 0.89rem; line-height: 1.55; color: var(--fg); }
+  .card code { background: var(--code-bg); padding: 0.05em 0.35em; border-radius: 4px; font-size: 0.85em; font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+  footer { margin-top: 10px; font-size: 0.76rem; color: var(--muted); text-align: center; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">k8s-labs &middot; decisões de arquitetura</p>
+  <h1>Por que o ambiente é assim</h1>
+  <p class="sub">Topologia atual e o raciocínio por trás de cada escolha não óbvia: o que foi avaliado, o que foi descartado e por quê. O fluxo de entrega (sequência das pipelines) e o mapa do ambiente (topologia detalhada por cluster) vivem em diagramas separados — aqui fica só o "porquê".</p>
+  <p class="sub correction"><b>Nota de 2026-11-22:</b> esta página substitui por completo a versão anterior (Karpenter/KEDA/Istio no cluster "k8s-labs" de 5 nós) — aquele cluster foi desprovisionado em 2026-11-17 e seu código arquivado na tag <code>archive/k8s-labs-5-pilares-2026-11-17</code>. O conteúdo abaixo descreve o ambiente real em produção-de-lab hoje.</p>
+
+  <figure>
+    <svg viewBox="0 0 940 700" role="img" aria-label="Diagrama numerado do fluxo, com a camada física do Proxmox por baixo: um único host físico 'pve' (192.168.15.7) hospeda todas as VMs na mesma rede plana (sem segmentação de rede entre elas — a única segmentação real hoje é via NetworkPolicy/Cilium dentro do k8s-backstage), formando dois clusters k3s — k8s-ci (VMs 2021/.70, 2023/.72, 2024/.73) e k8s-backstage, agora com 4 nós (2022/.71, 2026/.75, 2027/.76, 2029/.78), rodando Cilium como CNI — mais a VM standalone do Semaphore (2025/.74), a VM do NFS-Ganesha (2028/.77), duas VMs standalone de emuladores de nuvem local (MiniStack/.56 pra AWS, floci-az/.79 pra Azure) e a VM do Wazuh (SIEM, .80), com os 10 hosts do lab já conectados como agentes e o módulo SCA rodando (vai substituir o Lynis após validação, e consumir os alertas do Falco como log source quando este for implementado). 1 push no Forgejo (http://.70:3000, no k8s-ci) dispara 2 a Tekton Pipeline, que 3 é assinada pelo Tekton Chains; a imagem sai do k8s-ci e 4 o Argo CD (https://.71:8443) sincroniza no cluster k8s-backstage, com o Argo CD Image Updater monitorando a mesma imagem e escrevendo digest novo de volta no repositório via SSH; o Argo CD 5 faz o deploy do Backstage, ligado a 6 Postgres e exposto via 7 Traefik em https://backstage.lab.local. O mesmo cluster hospeda 4 namespaces de estágio (dev/qa/stage/prod), cada um com ResourceQuota/LimitRange/NetworkPolicy — base pro Crossplane (ainda pendente) provisionar infra de tamanho diferente por estágio contra os emuladores. Em paralelo, 8 o Semaphore (http://.74:3000) dispara Ansible contra os dois clusters (Renovate, kube-bench, Lynis) e contra 9 a VM nfs-ganesha, que fornece o workspace compartilhado do Tekton.">
+      <defs>
+        <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <!-- camada fisica: Proxmox, host unico, envolve tudo -->
+      <rect x="6" y="4" width="928" height="684" rx="14" fill="none" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="6 4"/>
+      <text x="22" y="22" font-size="10.5" font-weight="700" letter-spacing="0.05em" fill="var(--muted)">PROXMOX &mdash; HOST F&Iacute;SICO &Uacute;NICO (&ldquo;pve&rdquo;, 192.168.15.7, 12 VMs) &middot; https://192.168.15.7:8006</text>
+
+      <g transform="translate(0,28)" font-family="Inter, sans-serif">
+        <!-- zona platform-ops (topo, orquestra as demais) -->
+        <rect x="20" y="16" width="900" height="70" rx="10" fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="5 3"/>
+        <text x="36" y="34" font-size="10.5" font-weight="600" letter-spacing="0.04em" fill="var(--accent)">VM &mdash; PLATFORM-OPS (2025 &middot; semaphore-ui &middot; 192.168.15.74)</text>
+        <g transform="translate(36,44)">
+          <rect width="150" height="34" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="75" y="15" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--fg)">&#8635; Semaphore</text>
+          <text x="75" y="28" text-anchor="middle" font-size="8" fill="var(--muted)">http://.74:3000</text>
+        </g>
+        <circle cx="210" cy="61" r="10" fill="var(--accent)"/>
+        <text x="210" y="65" text-anchor="middle" font-size="10" font-weight="700" fill="var(--bg)">8</text>
+        <text x="228" y="57" font-size="9" fill="var(--muted)">dispara sob demanda / Schedule:</text>
+        <text x="228" y="68" font-size="9" fill="var(--muted)">Renovate &middot; kube-bench &middot; Lynis</text>
+
+        <path d="M 110,78 C 110,110 140,110 170,138" fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#arrow2)"/>
+        <path d="M 110,78 C 110,140 500,170 620,178" fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="3 3" marker-end="url(#arrow2)"/>
+
+        <!-- zona k8s-ci -->
+        <rect x="20" y="140" width="480" height="230" rx="12" fill="none" stroke="var(--fg)" stroke-width="1.3"/>
+        <text x="36" y="160" font-size="10.5" font-weight="600" letter-spacing="0.04em" fill="var(--fg)">CLUSTER K8S-CI &mdash; 2021/.70(cp) 2023/.72(w1) 2024/.73(w2)</text>
+
+        <g transform="translate(40,174)">
+          <rect width="150" height="46" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="75" y="19" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--fg)">&#9638; Forgejo</text>
+          <text x="75" y="33" text-anchor="middle" font-size="8" fill="var(--muted)">http://.70:3000</text>
+        </g>
+        <circle cx="26" cy="174" r="9" fill="var(--accent-2)"/>
+        <text x="26" y="178" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--bg)">1</text>
+
+        <line x1="190" y1="197" x2="224" y2="197" stroke="currentColor" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <circle cx="207" cy="186" r="9" fill="var(--accent-2)"/>
+        <text x="207" y="190" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--bg)">2</text>
+
+        <g transform="translate(226,174)">
+          <rect width="150" height="46" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="75" y="17" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--fg)">&#129521; Tekton Pipeline</text>
+          <text x="75" y="31" text-anchor="middle" font-size="8.5" fill="var(--muted)">test&middot;SAST&middot;SCA&middot;build&middot;scan</text>
+        </g>
+
+        <line x1="40" y1="244" x2="40" y2="260" stroke="currentColor" stroke-width="1.1"/>
+        <line x1="40" y1="260" x2="300" y2="260" stroke="currentColor" stroke-width="1.1"/>
+        <line x1="300" y1="260" x2="300" y2="222" stroke="currentColor" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <text x="170" y="253" text-anchor="middle" font-size="8.5" fill="var(--muted)">SBOM + assinatura observam o resultado da Task build</text>
+
+        <g transform="translate(226,268)">
+          <rect width="150" height="42" rx="7" fill="var(--panel-2)" stroke="var(--accent)" stroke-width="1.3"/>
+          <text x="75" y="17" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--fg)">&#128274; Tekton Chains</text>
+          <text x="75" y="31" text-anchor="middle" font-size="8.5" fill="var(--muted)">assina a imagem (Cosign)</text>
+        </g>
+        <circle cx="226" cy="268" r="9" fill="var(--accent-2)"/>
+        <text x="226" y="272" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--bg)">3</text>
+
+        <g transform="translate(40,268)">
+          <rect width="150" height="42" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="75" y="17" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--fg)">&#9879; Renovate</text>
+          <text x="75" y="31" text-anchor="middle" font-size="8.5" fill="var(--muted)">PR de dependência</text>
+        </g>
+
+        <line x1="40" y1="330" x2="230" y2="330" stroke="currentColor" stroke-width="1.1" stroke-dasharray="2 3"/>
+        <text x="40" y="344" font-size="9" fill="var(--muted)">kube-bench + Lynis auditam os 3 nós (fora do fluxo de entrega)</text>
+
+        <!-- nfs-ganesha -->
+        <rect x="20" y="392" width="200" height="70" rx="10" fill="none" stroke="var(--fg)" stroke-width="1.2"/>
+        <text x="36" y="410" font-size="10" font-weight="600" letter-spacing="0.04em" fill="var(--fg)">VM &mdash; NFS-GANESHA (2028 &middot; 192.168.15.77)</text>
+        <g transform="translate(40,420)">
+          <rect width="150" height="32" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="75" y="14" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--fg)">&#128451; NFS-Ganesha</text>
+          <text x="75" y="26" text-anchor="middle" font-size="8" fill="var(--muted)">workspace do Tekton</text>
+        </g>
+        <line x1="120" y1="370" x2="120" y2="390" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow2)"/>
+        <line x1="135" y1="390" x2="135" y2="370" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow2)"/>
+        <circle cx="160" cy="380" r="9" fill="var(--muted)"/>
+        <text x="160" y="384" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--bg)">9</text>
+
+        <!-- VMs standalone: emuladores de nuvem local -->
+        <rect x="20" y="474" width="480" height="96" rx="10" fill="none" stroke="var(--fg)" stroke-width="1.2" stroke-dasharray="4 3"/>
+        <text x="36" y="492" font-size="10" font-weight="600" letter-spacing="0.04em" fill="var(--fg)">VMS STANDALONE &mdash; EMULADORES DE NUVEM LOCAL (fora de qualquer cluster k3s)</text>
+        <g transform="translate(40,502)">
+          <rect width="190" height="42" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="95" y="17" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--fg)">&#9729; MiniStack</text>
+          <text x="95" y="31" text-anchor="middle" font-size="7.5" fill="var(--muted)">2007 &middot; .56:4566 &middot; emula AWS</text>
+        </g>
+        <g transform="translate(250,502)">
+          <rect width="190" height="42" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="95" y="17" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--fg)">&#9729; floci-az</text>
+          <text x="95" y="31" text-anchor="middle" font-size="7.5" fill="var(--muted)">2030 &middot; .79:4577 &middot; emula Azure</text>
+        </g>
+        <text x="36" y="562" font-size="8" fill="var(--muted)">alvo do Crossplane (ProviderConfig) quando o stage 18 for implementado &mdash; ver cards abaixo</text>
+
+        <!-- VM standalone: Wazuh (SIEM) -- implementado 24/11 -->
+        <rect x="20" y="582" width="480" height="58" rx="10" fill="none" stroke="var(--fg)" stroke-width="1.2"/>
+        <text x="36" y="600" font-size="10" font-weight="600" letter-spacing="0.04em" fill="var(--fg)">VM &mdash; WAZUH (SIEM) (2031 &middot; 192.168.15.80)</text>
+        <text x="36" y="614" font-size="7.5" fill="var(--accent-2)">Manager + Indexer (OpenSearch) + Dashboard &middot; https://192.168.15.80 &middot; 10 agentes conectados</text>
+        <text x="36" y="626" font-size="7.5" fill="var(--muted)">SCA ja rodando (substitui o Lynis, apos validacao) &middot; consumira alertas do Falco quando implementado</text>
+
+        <!-- seta entre zonas: k8s-ci -> k8s-backstage -->
+        <path d="M 500,197 C 560,197 560,197 618,197" fill="none" stroke="var(--accent-2)" stroke-width="1.6" marker-end="url(#arrow2)"/>
+        <text x="558" y="188" text-anchor="middle" font-size="8.5" fill="var(--accent-2)" font-weight="600">imagem assinada</text>
+
+        <!-- zona k8s-backstage -->
+        <rect x="620" y="140" width="300" height="352" rx="12" fill="none" stroke="var(--fg)" stroke-width="1.3"/>
+        <text x="636" y="158" font-size="10.5" font-weight="600" letter-spacing="0.04em" fill="var(--fg)">CLUSTER K8S-BACKSTAGE</text>
+        <text x="636" y="170" font-size="7.3" fill="var(--muted)">2022/.71(cp) 2026/.75(w1) 2027/.76(w2) 2029/.78(w3)</text>
+        <text x="636" y="180" font-size="7.3" fill="var(--accent-2)">CNI: Cilium 1.20.5 (substituiu o Flannel em 23/11)</text>
+
+        <g transform="translate(636,190)">
+          <rect width="122" height="44" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="61" y="17" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--fg)">&#8635; Argo CD</text>
+          <text x="61" y="30" text-anchor="middle" font-size="7" fill="var(--muted)">sync manual &middot; .71:8443</text>
+        </g>
+        <circle cx="636" cy="190" r="9" fill="var(--accent-2)"/>
+        <text x="636" y="194" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--bg)">4</text>
+
+        <g transform="translate(764,190)">
+          <rect width="122" height="44" rx="7" fill="var(--panel-2)" stroke="var(--accent)" stroke-width="1.2"/>
+          <text x="61" y="15" text-anchor="middle" font-size="8.8" font-weight="700" fill="var(--fg)">&#8635; Image Updater</text>
+          <text x="61" y="27" text-anchor="middle" font-size="6.8" fill="var(--muted)">v1.5 CRD &middot; digest</text>
+          <text x="61" y="37" text-anchor="middle" font-size="6.8" fill="var(--muted)">write-back via SSH</text>
+        </g>
+
+        <line x1="711" y1="234" x2="711" y2="252" stroke="currentColor" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <circle cx="722" cy="244" r="9" fill="var(--accent-2)"/>
+        <text x="722" y="248" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--bg)">5</text>
+
+        <g transform="translate(686,254)">
+          <rect width="150" height="40" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="75" y="17" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--fg)">&#9633; Backstage</text>
+          <text x="75" y="31" text-anchor="middle" font-size="8.5" fill="var(--muted)">3 réplicas</text>
+        </g>
+
+        <line x1="730" y1="294" x2="697" y2="306" stroke="currentColor" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <line x1="792" y1="294" x2="825" y2="306" stroke="currentColor" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <circle cx="684" cy="302" r="9" fill="var(--accent-2)"/>
+        <text x="684" y="306" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--bg)">6</text>
+        <circle cx="838" cy="302" r="9" fill="var(--accent-2)"/>
+        <text x="838" y="306" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--bg)">7</text>
+
+        <g transform="translate(636,306)">
+          <rect width="122" height="36" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="61" y="15" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--fg)">&#128455; Postgres</text>
+          <text x="61" y="27" text-anchor="middle" font-size="7" fill="var(--muted)">catálogo persistente</text>
+        </g>
+        <g transform="translate(764,306)">
+          <rect width="122" height="36" rx="7" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1.1"/>
+          <text x="61" y="15" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--fg)">&#127760; Traefik</text>
+          <text x="61" y="27" text-anchor="middle" font-size="6.8" fill="var(--muted)">backstage.lab.local</text>
+        </g>
+
+        <text x="636" y="358" font-size="8" font-weight="700" fill="var(--fg)">MULTI-STAGE (tenant = estágio)</text>
+        <g transform="translate(636,364)">
+          <rect width="56" height="32" rx="6" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1"/>
+          <text x="28" y="14" text-anchor="middle" font-size="8.5" font-weight="700" fill="var(--fg)">dev</text>
+          <text x="28" y="25" text-anchor="middle" font-size="6" fill="var(--muted)">RQ+LR+NP</text>
+        </g>
+        <g transform="translate(700,364)">
+          <rect width="56" height="32" rx="6" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1"/>
+          <text x="28" y="14" text-anchor="middle" font-size="8.5" font-weight="700" fill="var(--fg)">qa</text>
+          <text x="28" y="25" text-anchor="middle" font-size="6" fill="var(--muted)">RQ+LR+NP</text>
+        </g>
+        <g transform="translate(764,364)">
+          <rect width="56" height="32" rx="6" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1"/>
+          <text x="28" y="14" text-anchor="middle" font-size="8.5" font-weight="700" fill="var(--fg)">stage</text>
+          <text x="28" y="25" text-anchor="middle" font-size="6" fill="var(--muted)">RQ+LR+NP</text>
+        </g>
+        <g transform="translate(828,364)">
+          <rect width="56" height="32" rx="6" fill="var(--panel-2)" stroke="var(--fg)" stroke-width="1"/>
+          <text x="28" y="14" text-anchor="middle" font-size="8.5" font-weight="700" fill="var(--fg)">prod</text>
+          <text x="28" y="25" text-anchor="middle" font-size="6" fill="var(--muted)">RQ+LR+NP</text>
+        </g>
+        <text x="636" y="412" font-size="7.3" fill="var(--muted)">Crossplane por estágio (ProviderConfig namespaced):</text>
+        <text x="636" y="422" font-size="7.3" fill="var(--accent)">AWS/MiniStack confirmado &middot; Azure/floci-az em avaliação &mdash; PENDENTE</text>
+
+        <line x1="636" y1="444" x2="896" y2="444" stroke="currentColor" stroke-width="1.1" stroke-dasharray="2 3"/>
+        <text x="636" y="460" font-size="8" fill="var(--muted)">kube-bench + Lynis auditam os 4 nodes</text>
+      </g>
+    </svg>
+    <figcaption>Numeração traça o fluxo real de entrega (1&rarr;7); a borda tracejada externa é o único host físico Proxmox — não há segmentação de rede real entre as VMs (mesma LAN plana, 192.168.15.0/24), exceto dentro do k8s-backstage, onde o Cilium aplica NetworkPolicy real entre os namespaces de estágio. O contorno laranja (platform-ops) e as linhas pontilhadas mostram a camada de automação paralela (Semaphore/Ansible), que não faz parte do fluxo de entrega em si. O Image Updater e o bloco multi-stage (dentro do k8s-backstage) e as VMs de emuladores (bloco tracejado, canto inferior esquerdo) não têm numeração — são peças de suporte/plataforma, não etapas sequenciais do fluxo de deploy. Detalhe completo de serviços está no <b>mapa do ambiente</b>; a sequência passo a passo das pipelines está no <b>fluxo de entrega</b>. Esta página cobre só o raciocínio por trás das escolhas.</figcaption>
+  </figure>
+
+  <h2 class="section">Decisões de arquitetura</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="h">Storage compartilhado<span class="status ok">implementado</span></div>
+      <p>O workspace do Tekton (<code>shared-data</code>) precisa ser visível por Tasks em Pods diferentes — exige volume compartilhado entre nodes, não disco local. Escolha: VM dedicada (<code>nfs-ganesha</code>) rodando NFS-Ganesha, consumida via <code>csi-driver-nfs</code>, substituindo o <code>local-path-provisioner</code> padrão do k3s, que prendia cada PipelineRun ao node do primeiro pod. É essa troca que viabilizou o balanceamento real entre <code>k8s-ci-w1</code> e <code>k8s-ci-w2</code>.</p>
+      <p>Custo aceito: VM única é um ponto único de falha. Plano de mitigação: substituir por Longhorn (storage distribuído, replicado entre os próprios nodes) — em estudo, ver sequência de evolução do ambiente.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">Isolamento de performance<span class="status ok">implementado</span></div>
+      <p>Nem tudo que é escrito no workspace precisa atravessar Pods: o <code>node_modules</code> da Task <code>test</code> não é lido por nenhuma Task posterior (a Task <code>build</code> reinstala de dentro do Buildah). Isolado num <code>emptyDir</code> local em vez do NFS compartilhado.</p>
+      <p>Medido antes/depois: <code>test</code> caiu de ~15min para ~4min; <code>sca</code>, que chegava a travar com timeout lendo pela rede, caiu para menos de 1min.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">gVisor seletivo<span class="status ok">implementado</span></div>
+      <p>Isolamento extra de syscalls aplicado só nas Tasks <code>test</code>, <code>sast</code> e <code>sca</code> — não precisam de mount privilegiado. A Task <code>build</code> fica de fora por necessidade, não por escolha: Buildah exige <code>SYS_ADMIN</code> e mount privilegiado, incompatível com o kernel de espaço de usuário do runsc.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">Patch de imagem (Copacetic / Chainguard)<span class="status warn">avaliado, descartado</span></div>
+      <p><b>Copacetic:</b> baixo ganho real — o rebuild + <code>apt upgrade</code> que a Task <code>build</code> já faz cobre a mesma superfície que o Copacetic cobriria.</p>
+      <p><b>Chainguard/Wolfi:</b> base zero-CVE, mas troca a libc pra musl — reabre risco de módulo nativo quebrar, e exigiria multi-stage build. Os dois avaliados em 21/11/2026, nenhum implementado.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">IaC Scan — gap do Terraform<span class="status warn">parcial, em avaliação</span></div>
+      <p>Checkov cobre Kubernetes (90 checks) e Ansible (24 checks) do próprio repo, mas zero regras pro provider Proxmox (<code>bpg/proxmox</code>) — confirmado via <code>checkov -l | grep -i proxmox</code>, contra um catálogo de +7900 checks organizados por provedor de nuvem. Proxmox é provider de nicho, fora desse catálogo.</p>
+      <p>Em avaliação (22/11/2026): tfsec/<code>trivy config</code> como alternativa — mesmo risco de repetir o gap, já que a maioria das regras built-in também é por provedor de nuvem. Próximo passo: rodar e ver o que dispara de verdade.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">kube-bench como CronJob, não Task<span class="status ok">implementado</span></div>
+      <p>Hardening (CIS Benchmark) não cabe no modelo Tekton Task: não existe "git push" que signifique "configuração do cluster mudou" — isso acontece via Terraform/Ansible apply, fora do fluxo de entrega. Implementado como CronJob, mesma família do Pruner, 1 por node (6 no total, 2 clusters).</p>
+      <p>Risco aceito: não existe perfil <code>k3s-cis-*</code> exato pra k3s v1.37.x — usado <code>k3s-cis-1.24</code> (mapeado oficialmente até v1.32), aproximação consciente dado o caráter de estudo do ambiente.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">Semaphore nunca se autogerencia<span class="status warn">limitação conhecida</span></div>
+      <p>O binário Go do Semaphore mata o próprio job em andamento ao receber SIGTERM quando o serviço reinicia. Por isso o playbook que instala/configura a própria VM do Semaphore só roda manualmente, via terminal — nunca através do próprio Semaphore.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">Cilium substitui o Flannel<span class="status ok">implementado 23/11</span></div>
+      <p>O Flannel embarcado do k3s (modo VXLAN, sem motor de política) aceitaria um <code>NetworkPolicy</code> sem erro, mas ele ficaria completamente inerte — falsa sensação de isolamento. Decisão: adiantar o Cilium no <code>k8s-backstage</code> (fora da ordem original do roadmap de evolução), já que o multi-tenancy por estágio exige rede real entre namespaces.</p>
+      <p>Gotcha real, não documentado com clareza: o k3s usa um diretório de config de CNI próprio (<code>/var/lib/rancher/k3s/agent/etc/cni/net.d/</code>), diferente do <code>/etc/cni/net.d/</code> genérico que o Helm chart do Cilium escreve por padrão. O Cilium "funcionava" (pod <code>Running</code>, <code>cilium status</code> OK) mas o kubelet nunca via a config — corrigido com <code>cni.confPath</code>/<code>cni.binPath</code> explícitos no Helm.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">Argo CD Image Updater — write-back via SSH<span class="status ok">implementado 23/11</span></div>
+      <p>Estratégia <code>digest</code>, não <code>semver</code>: o Tekton sempre publica a mesma tag fixa (<code>:latest</code>), então só o conteúdo por trás dela muda. Write-back via Git (mantém a filosofia do projeto: Argo CD só compara Git vs. cluster, nunca aplica direto).</p>
+      <p>HTTP não foi opção: o método <code>git:secret:</code> do Image Updater v1.5 só reconhece <code>https://</code> ou SSH — nunca <code>http://</code> puro (confirmado lendo o código-fonte do provider), e o Forgejo deste lab não tem TLS. Solução: deploy key dedicada, só com escrita no <code>gitops-manifests</code>, via porta 2222.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">Multi-tenancy por estágio<span class="status ok">implementado 23/11</span></div>
+      <p>Tenant = estágio (dev/qa/stage/prod), não time/projeto — decisão explícita antes de implementar. Cada namespace: <code>ResourceQuota</code> (teto agregado, números escalonados 1&rarr;4 vCPU/GB), <code>LimitRange</code> (default + teto por container) e 4 <code>NetworkPolicy</code> (default-deny, same-namespace, dns-egress, ingress-from-traefik).</p>
+      <p>Validado com teste real, não só "objeto existe": <code>dev &rarr; qa</code> deu timeout silencioso (pacote derrubado); <code>dev &rarr; dev</code> deu "connection refused" (pacote chegou, só não tinha servidor ouvindo) — a diferença entre os dois comprova o isolamento de rede de verdade.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">Emuladores de nuvem local (MiniStack / floci-az)<span class="status warn">pendente de integração</span></div>
+      <p>Base pro Crossplane validar infra de tamanhos diferentes por estágio sem custo real de cloud. AWS via MiniStack confirmado por pesquisa (<code>provider-family-aws</code> + <code>provider-aws-s3</code>/<code>dynamodb</code>, <code>v2.10.0</code>) — falta só confirmar suporte a endpoint customizado na prática.</p>
+      <p>Azure via floci-az tem um bloqueio real: os providers Azure oficiais da Crossplane (Upjet, embrulham o <code>azurerm</code> do Terraform) só falam com o Azure Resource Manager real + Azure AD, sem campo de endpoint customizável — e o floci-az não é um emulador de ARM. Caminho em avaliação: provider genérico <code>provider-http</code> chamando a API própria do floci-az diretamente, em vez de fingir que ele é Azure de verdade.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">Wazuh — consolidação em vez de ferramenta por camada<span class="status ok">implementado 24/11</span></div>
+      <p>Avaliado como SIEM durante um exercício de cobertura de cyber security, com um critério explícito: priorizar o maior ganho de consolidação em vez de instalar mais uma solução isolada por camada. Resultado: Wazuh substitui duas peças já planejadas/em uso, não só soma uma terceira.</p>
+      <p><b>SCA substitui o Lynis</b> (mesmo CIS Benchmark de SO, com compliance mapping nativo PCI-DSS/SOX/HIPAA que o Lynis nunca teve — fecha de quebra o gap que a ideia antiga "Ansible+Rundeck+OpenSCAP" tentava cobrir, hoje obsoleta). <b>Wazuh Indexer (fork do OpenSearch) substitui o Loki/Fluent Bit</b> planejado como log centralizado — trade-off aceito: bem mais pesado que o Loki (JVM, ~2-4GB só pro Indexer). <b>Falco não é substituído</b> — o módulo de container do Wazuh é raso (só eventos da API do Docker); quando implementado, vira log source consumido pelo Wazuh, não dashboard isolado. <code>kube-bench</code> continua intacto (audita Kubernetes, camada diferente do SCA).</p>
+      <p>VM 2031/.80 (8 vCPU/8GB/100GB, faixa 26-50 agentes — folga de propósito). <b>3 gotchas reais no caminho:</b> (1) path do repo apt é <code>4.x</code> fixo, não <code>4.14</code> versionado (403/AccessDenied do S3 com o path errado); (2) Manager+Indexer falharam no primeiro boot — o JVM do OpenSearch bateu no timeout de 3min do systemd competindo com o resto do boot da VM, corrigido reiniciando isolado (indexer antes do manager); (3) enrollment de agente falha silenciosamente se o Manager estiver fora do ar na instalação, mas o agente tem retry automático (~40-50s) e se autorregistra sozinho assim que o Manager volta — nenhum dos 10 agentes precisou de intervenção manual. 10/10 confirmados <code>Active</code>, SCA já rodando a política CIS Ubuntu 22.04.</p>
+    </div>
+
+    <div class="card">
+      <div class="h">qemu-guest-agent faltando em 4 VMs standalone<span class="status ok">corrigido 24/11</span></div>
+      <p>Achado ao notar no Proxmox UI que <code>floci-az</code> e <code>wazuh</code> apareciam sem o guest agent. Investigação mostrou que era mais amplo: só o role <code>k3s-cluster</code> e o <code>nfs-ganesha</code> instalavam <code>qemu-guest-agent</code> — <code>ministack</code>, <code>floci-az</code>, <code>semaphore</code> e o novo <code>wazuh-manager</code> nunca tiveram esse passo, mesmo sendo um bug real já documentado (e corrigido) no <code>nfs-ganesha</code> em 2026-11-19 ("terraform apply" trava esperando o IP de volta sem o agente). Replicado o mesmo par de tasks nos 4 roles que faltavam.</p>
+    </div>
+  </div>
+
+  <footer>k8s-labs &middot; decisões de arquitetura, atualizado 2026-11-24 &middot; fatos conferidos contra <code>docs/inventario-componentes.md</code> (levantado e validado ao vivo em 2026-11-25) &mdash; nenhuma divergência encontrada</footer>
+</div>
+</body>
+</html>

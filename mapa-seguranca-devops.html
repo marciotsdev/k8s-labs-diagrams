@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #0d1420; --ink: #e8edf5; --muted: #8b9bb3;
+    --accent: #2e74b5; --ok: #1f7a4d; --ok-text: #4fd88a;
+    --warn: #7a5a1f; --warn-text: #e8c468;
+    --gap: #7a1f2b; --gap-text: #ff8a8a;
+    --sub: #4a4f5a; --sub-text: #9aa1ad;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; padding:36px 42px; width:1180px; }
+  h1 { font-size:28px; margin:0 0 6px; }
+  .sub { color:var(--muted); font-size:13px; max-width:980px; line-height:1.5; margin-bottom:10px; }
+  .legend { display:flex; gap:18px; flex-wrap:wrap; font-size:11px; color:var(--muted); margin-bottom:22px; }
+  .legend span.dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+  .stage { border:2px solid var(--accent); border-radius:14px; padding:16px 20px 18px; margin-bottom:14px; background:#0f1826; }
+  .stage .head { display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+  .stage .num { font-size:12px; font-weight:800; color:var(--bg); background:var(--accent); border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; flex:none; }
+  .stage h2 { margin:0; font-size:17px; }
+  .stage .desc { color:var(--muted); font-size:11px; margin-left:auto; text-align:right; max-width:380px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; }
+  .tool { flex:1; min-width:200px; border-radius:9px; padding:10px 12px; font-size:11.5px; border:1px solid #2a3b54; background:#101a29; }
+  .tool .t { font-weight:700; font-size:12.5px; margin-bottom:3px; }
+  .tool .d { color:var(--muted); line-height:1.4; }
+  .tool.subst { opacity:.55; }
+  .tool.subst .t { text-decoration: line-through; }
+  .tag { display:inline-block; font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:5px; margin-top:6px; letter-spacing:.4px; }
+  .tag.ok { background:var(--ok); color:var(--ok-text); }
+  .tag.warn { background:var(--warn); color:var(--warn-text); }
+  .tag.gap { background:var(--gap); color:var(--gap-text); }
+  .tag.sub { background:var(--sub); color:var(--sub-text); }
+  .empty { color:var(--gap-text); font-size:12px; font-style:italic; padding:8px 0; }
+  .arrowdown { text-align:center; color:#9fb6d6; font-size:11px; margin:-6px 0 14px; }
+  footer { color:#5a6b85; font-size:11px; margin-top:10px; }
+</style>
+</head>
+<body>
+  <h1>Mapa de cobertura de segurança — ciclo DevOps</h1>
+  <div class="sub">Cada ferramenta de segurança/qualidade do k8s-labs (implementada ou planejada) posicionada no estágio do ciclo DevOps onde ela realmente atua — mesmo exercício de clareza que o fluxo de entrega (Forgejo→Tekton→Argo CD→Crossplane) já tinha, agora aplicado à cobertura de segurança como um todo. Objetivo: qualquer ferramenta nova precisa "provar" que ocupa um espaço vazio antes de entrar, em vez de só somar mais uma peça. Baseado no ciclo de 8 estágios (Plan→Code→Build→Test→Release→Deploy→Operate→Monitor). Gerado 2026-11-24.</div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--ok-text)"></span>implementado</span>
+    <span><span class="dot" style="background:var(--warn-text)"></span>planejado/pendente</span>
+    <span><span class="dot" style="background:var(--gap-text)"></span>lacuna real (nada cobre)</span>
+    <span><span class="dot" style="background:var(--sub-text)"></span>substituído (ver seta)</span>
+  </div>
+
+  <div class="stage">
+    <div class="head"><div class="num">1</div><h2>Plan</h2><div class="desc">backlog, critérios de aceite, sprint</div></div>
+    <div class="empty">Lacuna real — nenhuma ferramenta de segurança do projeto atua aqui hoje (sem threat modeling nem critério de segurança no backlog). Não é um "esquecimento fácil de preencher" — normalmente exige processo/governança, não uma ferramenta nova.</div>
+  </div>
+  <div class="arrowdown">▼</div>
+
+  <div class="stage">
+    <div class="head"><div class="num">2</div><h2>Code</h2><div class="desc">branch, commit, PR, lint</div></div>
+    <div class="row">
+      <div class="tool"><div class="t">Semgrep (SAST)</div><div class="d">Task "sast" do Tekton — análise estática do código-fonte</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">Checkov (IaC Scan)</div><div class="d">Pipeline "iac-scan" — Kubernetes+Ansible cobertos, Terraform sem cobertura (provider Proxmox fora do catálogo)</div><span class="tag warn">PARCIAL</span></div>
+      <div class="tool"><div class="t">Renovate</div><div class="d">Abre PR de dependência desatualizada — fecha o loop de patch de dependência direto no código</div><span class="tag ok">FEITO</span></div>
+    </div>
+  </div>
+  <div class="arrowdown">▼</div>
+
+  <div class="stage">
+    <div class="head"><div class="num">3</div><h2>Build</h2><div class="desc">compilar, empacotar, build de imagem, scan de dependência</div></div>
+    <div class="row">
+      <div class="tool"><div class="t">Trivy (modo fs — SCA)</div><div class="d">Task "sca" — escaneia yarn.lock por CVEs e segredos vazados</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">Syft (SBOM)</div><div class="d">Task "sbom" — inventário de pacotes (CycloneDX), gerado 1x e reaproveitado</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">gVisor (runsc)</div><div class="d">Isolamento de syscalls nas Tasks test/sast/sca — não em build (exige SYS_ADMIN, incompatível)</div><span class="tag ok">FEITO</span></div>
+    </div>
+  </div>
+  <div class="arrowdown">▼</div>
+
+  <div class="stage">
+    <div class="head"><div class="num">4</div><h2>Test</h2><div class="desc">testes unitários, API, UI como quality gate</div></div>
+    <div class="row">
+      <div class="tool"><div class="t">yarn test (Task "test")</div><div class="d">Quality gate funcional — não é uma ferramenta de segurança própria, mas SAST/SCA (estágio Code/Build) atuam como o quality gate de segurança aqui</div><span class="tag ok">FEITO</span></div>
+    </div>
+  </div>
+  <div class="arrowdown">▼</div>
+
+  <div class="stage">
+    <div class="head"><div class="num">5</div><h2>Release</h2><div class="desc">versão, changelog, artefato assinado</div></div>
+    <div class="row">
+      <div class="tool"><div class="t">Tekton Chains</div><div class="d">Assina a imagem (Cosign) automaticamente, observando o resultado da Task build</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">Trivy (modo sbom — image scan)</div><div class="d">Lê o SBOM gerado e escaneia a imagem final por CVEs, sem reenumerar</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">Forgejo Packages</div><div class="d">Registry — imagem assinada, versionada e publicada</div><span class="tag ok">FEITO</span></div>
+    </div>
+  </div>
+  <div class="arrowdown">▼</div>
+
+  <div class="stage">
+    <div class="head"><div class="num">6</div><h2>Deploy</h2><div class="desc">infra como código, canary/blue-green, rollback</div></div>
+    <div class="row">
+      <div class="tool"><div class="t">Argo CD + Image Updater</div><div class="d">GitOps — detecta digest novo, sincroniza (sync manual hoje)</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">Kyverno</div><div class="d">Instalado no cluster, mas não aplicado especificamente a este fluxo ainda</div><span class="tag warn">PARCIAL</span></div>
+      <div class="tool"><div class="t">Crossplane (wave -1)</div><div class="d">Provisionamento declarativo de infra antes do deploy do app — stage 18, em andamento</div><span class="tag warn">PENDENTE</span></div>
+      <div class="tool"><div class="t">Argo Rollouts / Istio</div><div class="d">Canary/blue-green + mesh — arquitetura-alvo (ver fluxo GitOps), não implementado no cluster atual</div><span class="tag warn">PENDENTE</span></div>
+    </div>
+  </div>
+  <div class="arrowdown">▼</div>
+
+  <div class="stage">
+    <div class="head"><div class="num">7</div><h2>Operate</h2><div class="desc">escalar, configurar, rodar incidente, runbook</div></div>
+    <div class="row">
+      <div class="tool"><div class="t">kube-bench</div><div class="d">CIS Benchmark da config do Kubernetes (apiserver/kubelet/RBAC) — CronJob semanal, 2 clusters</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">Lynis</div><div class="d">Hardening do SO via Ansible/Semaphore — ainda ativo de propósito: só será desligado depois de comparar os achados do SCA do Wazuh com o baseline (62/100), nunca antes (evita ficar sem nenhuma cobertura no intervalo)</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">Cilium (NetworkPolicy)</div><div class="d">Isolamento de rede real entre namespaces de estágio (dev/qa/stage/prod) — substituiu o Flannel, que não aplica política</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">ResourceQuota + LimitRange</div><div class="d">Isolamento de recurso por namespace de estágio — validado com teste real de rede</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">OWASP ZAP (DAST)</div><div class="d">Pipeline "dast-scan" — ataca o Backstage já deployado de verdade, disparo manual</div><span class="tag ok">FEITO</span></div>
+      <div class="tool"><div class="t">Falco</div><div class="d">Detecção comportamental em runtime (eBPF/syscall) — alertas viram log source consumido pelo Wazuh, não dashboard isolado</div><span class="tag warn">PENDENTE</span></div>
+      <div class="tool"><div class="t">Wazuh — SCA + agente</div><div class="d">11 agentes conectados (Active), política CIS Ubuntu 22.04 já rodando — vai assumir o papel do Lynis após validação (CIS Benchmark do SO + compliance PCI-DSS/SOX nativo)</div><span class="tag ok">FEITO 24/11</span></div>
+    </div>
+  </div>
+  <div class="arrowdown">▼</div>
+
+  <div class="stage">
+    <div class="head"><div class="num">8</div><h2>Monitor</h2><div class="desc">métricas, logs, traces, alertas — realimenta o Plan</div></div>
+    <div class="row">
+      <div class="tool"><div class="t">Wazuh Indexer + Dashboard</div><div class="d">Log centralizado (fork do OpenSearch) + correlação/alertas — https://192.168.15.80, substitui o Loki/Fluent Bit planejado</div><span class="tag ok">FEITO 24/11</span></div>
+      <div class="tool subst"><div class="t">Loki + Fluent Bit</div><div class="d">Log centralizado — substituído pelo Wazuh Indexer antes mesmo de ser implementado</div><span class="tag sub">SUBSTITUÍDO →</span></div>
+      <div class="tool"><div class="t">Prometheus + Grafana</div><div class="d">Métricas — endereça o achado de RAM das VMs perto do limite, hoje só visível via Proxmox manual</div><span class="tag warn">PENDENTE</span></div>
+      <div class="tool"><div class="t">OTel (tracing)</div><div class="d">Baixa prioridade — exige instrumentar o Backstage, só depois de Loki/Prometheus (agora Wazuh/Prometheus)</div><span class="tag warn">PENDENTE</span></div>
+    </div>
+  </div>
+
+  <footer>k8s-labs — mapa de cobertura de segurança vs. ciclo DevOps, 2026-11-24 (contagem de agentes Wazuh corrigida em 2026-11-25 após validação ao vivo). Ver <b>fluxo de entrega</b> (sequência das pipelines), <b>mapa do ambiente</b> (topologia) e <b>arquitetura</b> (porquê de cada escolha) pros outros ângulos do mesmo ambiente.</footer>
+</body>
+</html>
